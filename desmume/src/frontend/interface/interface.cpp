@@ -37,6 +37,12 @@
 #include <codecvt>
 #include <string>
 
+// for GDB_STUB
+#include "../armcpu.h"
+#include "../gdbstub.h"
+#include "../../commandline.h"
+#include "../../driver.h"
+
 #define SCREENS_PIXEL_SIZE 98304
 volatile bool execute = false;
 TieredRegion hooked_regions [HOOK_COUNT];
@@ -62,6 +68,68 @@ std::wstring s2ws(const std::string& str)
     return converter.from_bytes(str);
 }
 
+/* -----------------------
+ *
+ * gdbstubstuff
+ */
+class configured_features : public CommandLine
+{
+public:
+  int auto_pause;
+
+  int engine_3d;
+  int savetype;
+
+  int firmware_language;
+};
+
+static void
+init_config( class configured_features *config) {
+
+  config->auto_pause = 0;
+
+  config->engine_3d = 1;
+  config->savetype = 0;
+
+  /* use the default language */
+  config->firmware_language = -1;
+}
+
+static gdbstub_handle_t setup_gdb_stub(u16 port, armcpu_t *cpu, const armcpu_memory_iface *memio, const char* desc) {
+	gdbstub_handle_t stub = createStub_gdb(port, cpu, memio);
+	if ( stub == NULL) {
+		fprintf( stderr, "Failed to create %s gdbstub on port %d\n", desc, port);
+		exit( 1);
+	} else {
+		activateStub_gdb(stub);
+	}
+	return stub;
+}
+
+class CliDriver : public BaseDriver
+{
+private:
+	gdbstub_handle_t __stubs[2];
+public:
+	virtual void EMU_DebugIdleEnter() {
+		SPU_Pause(1);
+	}
+	virtual void EMU_DebugIdleUpdate() {
+		gdbstub_wait(__stubs, -1L);
+	}
+	virtual void EMU_DebugIdleWakeUp() {
+		SPU_Pause(0);
+	}
+	virtual void setStubs(gdbstub_handle_t stubs[2]) {
+		this->__stubs[0] = stubs[0];
+		this->__stubs[1] = stubs[1];
+	}
+};
+
+/*
+ * -----------------------
+ */
+
 EXPORTED int desmume_init()
 {
     NDS_Init();
@@ -79,12 +147,87 @@ EXPORTED int desmume_init()
         return -1;
     }
     execute = false;
+	
+	/* -----------------------
+	 *
+	 * gdbstubstuff
+	 */
+	class configured_features my_config;
+	init_config( &my_config);
+  	gdbstub_mutex_init();
+
+  	/*
+  	 * Activate the GDB stubs
+  	 * This has to come after NDS_Init() where the CPUs are set up.
+  	 */
+  	gdbstub_handle_t stubs[2] = {};
+  	if ( my_config.arm9_gdb_port > 0) {
+  	  stubs[0] = setup_gdb_stub(my_config.arm9_gdb_port,
+  	                                 &NDS_ARM9,
+  	                                 &arm9_direct_memory_iface, "ARM9");
+
+  	}
+  	if ( my_config.arm7_gdb_port > 0) {
+  	  stubs[1] = setup_gdb_stub(my_config.arm7_gdb_port,
+  	                                 &NDS_ARM7,
+  	                                 &arm7_base_memory_iface, "ARM7");
+
+  	}
+  	((CliDriver*)driver)->setStubs(stubs);
+  	gdbstub_wait_set_enabled(stubs[0], 1);
+  	gdbstub_wait_set_enabled(stubs[1], 1);
+
+  	if(stubs[0] || stubs[1]) {
+  	}
+	/*
+	 * -----------------------
+	 */
+
     return 0;
 }
+
+/* -----------------------
+ *
+ * The thread handling functions needed by the GDB stub code.
+ */
+void *
+createThread_gdb(void (*thread_function)(void *data),
+                 void *thread_data) {
+  SDL_Thread *new_thread = SDL_CreateThread((int (*)(void *data))thread_function,
+                                            "gdb-stub",
+                                            thread_data);
+
+  return new_thread;
+}
+
+void
+joinThread_gdb( void *thread_handle) {
+  int ignore;
+  SDL_WaitThread( (SDL_Thread*)thread_handle, &ignore);
+}
+
+static gdbstub_handle_t setup_gdb_stub(u16 port, armcpu_t *cpu, const armcpu_memory_iface *memio, const char* desc) {
+	gdbstub_handle_t stub = createStub_gdb(port, cpu, memio);
+	if ( stub == NULL) {
+		fprintf( stderr, "Failed to create %s gdbstub on port %d\n", desc, port);
+		exit( 1);
+	} else {
+		activateStub_gdb(stub);
+	}
+	return stub;
+}
+/*
+ * -----------------------
+ */
+
 
 EXPORTED void desmume_free()
 {
     execute = false;
+  	destroyStub_gdb( stubs[0]);
+  	destroyStub_gdb( stubs[1]);
+
+  	gdbstub_mutex_destroy();
     NDS_DeInit();
     SDL_Quit();
 }
