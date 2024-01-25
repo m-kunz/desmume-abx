@@ -1,20 +1,20 @@
 /*
-	Copyright (C) 2006 yopyop
-	Copyright (C) 2006-2007 shash
-	Copyright (C) 2008-2021 DeSmuME team
+    Copyright (C) 2006 yopyop
+    Copyright (C) 2006-2007 shash
+    Copyright (C) 2008-2021 DeSmuME team
 
-	This file is free software: you can redistribute it and/or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation, either version 2 of the License, or
-	(at your option) any later version.
+    This file is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 2 of the License, or
+    (at your option) any later version.
 
-	This file is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU General Public License for more details.
+    This file is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
 
-	You should have received a copy of the GNU General Public License
-	along with the this software.  If not, see <http://www.gnu.org/licenses/>.
+    You should have received a copy of the GNU General Public License
+    along with the this software.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include <SDL.h>
@@ -38,33 +38,30 @@
 #include <string>
 
 // for GDB_STUB
-#include "../armcpu.h"
-#include "../gdbstub.h"
-#include "../../commandline.h"
+// #include "../../armcpu.h"
+#include "../../gdbstub.h"
+// #include "../../commandline.h"
 #include "../../driver.h"
 
 #define SCREENS_PIXEL_SIZE 98304
 volatile bool execute = false;
-TieredRegion hooked_regions [HOOK_COUNT];
+TieredRegion hooked_regions[HOOK_COUNT];
 std::map<unsigned int, memory_cb_fnc> hooks[HOOK_COUNT];
 
-
 SoundInterface_struct *SNDCoreList[] = {
-        &SNDDummy,
-        &SNDDummy,
-        &SNDSDL,
-        NULL
-};
+    &SNDDummy,
+    &SNDDummy,
+    &SNDSDL,
+    NULL};
 
 GPU3DInterface *core3DList[] = {
-        &gpu3DNull,
-        &gpu3DRasterize,
-        NULL
-};
+    &gpu3DNull,
+    &gpu3DRasterize,
+    NULL};
 
-std::wstring s2ws(const std::string& str)
+std::wstring s2ws(const std::string &str)
 {
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t> > converter;
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
     return converter.from_bytes(str);
 }
 
@@ -72,58 +69,45 @@ std::wstring s2ws(const std::string& str)
  *
  * gdbstubstuff
  */
-class configured_features : public CommandLine
+
+static gdbstub_handle_t setup_gdb_stub(u16 port, armcpu_t *cpu, const armcpu_memory_iface *memio, const char *desc)
 {
-public:
-  int auto_pause;
-
-  int engine_3d;
-  int savetype;
-
-  int firmware_language;
-};
-
-static void
-init_config( class configured_features *config) {
-
-  config->auto_pause = 0;
-
-  config->engine_3d = 1;
-  config->savetype = 0;
-
-  /* use the default language */
-  config->firmware_language = -1;
-}
-
-static gdbstub_handle_t setup_gdb_stub(u16 port, armcpu_t *cpu, const armcpu_memory_iface *memio, const char* desc) {
-	gdbstub_handle_t stub = createStub_gdb(port, cpu, memio);
-	if ( stub == NULL) {
-		fprintf( stderr, "Failed to create %s gdbstub on port %d\n", desc, port);
-		exit( 1);
-	} else {
-		activateStub_gdb(stub);
-	}
-	return stub;
+    gdbstub_handle_t stub = createStub_gdb(port, cpu, memio);
+    if (stub == NULL)
+    {
+        fprintf(stderr, "Failed to create %s gdbstub on port %d\n", desc, port);
+        exit(1);
+    }
+    else
+    {
+        activateStub_gdb(stub);
+    }
+    return stub;
 }
 
 class CliDriver : public BaseDriver
 {
 private:
-	gdbstub_handle_t __stubs[2];
+    gdbstub_handle_t __stubs[2];
+
 public:
-	virtual void EMU_DebugIdleEnter() {
-		SPU_Pause(1);
-	}
-	virtual void EMU_DebugIdleUpdate() {
-		gdbstub_wait(__stubs, -1L);
-	}
-	virtual void EMU_DebugIdleWakeUp() {
-		SPU_Pause(0);
-	}
-	virtual void setStubs(gdbstub_handle_t stubs[2]) {
-		this->__stubs[0] = stubs[0];
-		this->__stubs[1] = stubs[1];
-	}
+    virtual void EMU_DebugIdleEnter()
+    {
+        SPU_Pause(1);
+    }
+    virtual void EMU_DebugIdleUpdate()
+    {
+        gdbstub_wait(__stubs, -1L);
+    }
+    virtual void EMU_DebugIdleWakeUp()
+    {
+        SPU_Pause(0);
+    }
+    virtual void setStubs(gdbstub_handle_t stubs[2])
+    {
+        this->__stubs[0] = stubs[0];
+        this->__stubs[1] = stubs[1];
+    }
 };
 
 /*
@@ -132,6 +116,9 @@ public:
 
 EXPORTED int desmume_init()
 {
+    int arm9_gdb_port = 1234;
+    int arm7_gdb_port = 0;
+
     NDS_Init();
     // TODO: Option to disable audio
     SPU_ChangeSoundCore(SNDCORE_SDL, 735 * 4);
@@ -141,48 +128,47 @@ EXPORTED int desmume_init()
     // TODO: Option to configure 3d
     GPU->Change3DRendererByID(RENDERID_SOFTRASTERIZER);
     // TODO: Without SDL init?
-    if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) == -1) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) == -1)
+    {
         fprintf(stderr, "Error trying to initialize SDL: %s\n",
                 SDL_GetError());
         return -1;
     }
     execute = false;
-	
-	/* -----------------------
-	 *
-	 * gdbstubstuff
-	 */
-	class configured_features my_config;
-	init_config( &my_config);
-  	gdbstub_mutex_init();
 
-  	/*
-  	 * Activate the GDB stubs
-  	 * This has to come after NDS_Init() where the CPUs are set up.
-  	 */
-  	gdbstub_handle_t stubs[2] = {};
-  	if ( my_config.arm9_gdb_port > 0) {
-  	  stubs[0] = setup_gdb_stub(my_config.arm9_gdb_port,
-  	                                 &NDS_ARM9,
-  	                                 &arm9_direct_memory_iface, "ARM9");
+    /* -----------------------
+     *
+     * gdbstubstuff
+     */
+    driver = new CliDriver();
+    gdbstub_mutex_init();
 
-  	}
-  	if ( my_config.arm7_gdb_port > 0) {
-  	  stubs[1] = setup_gdb_stub(my_config.arm7_gdb_port,
-  	                                 &NDS_ARM7,
-  	                                 &arm7_base_memory_iface, "ARM7");
+    /*
+     * Activate the GDB stubs
+     * This has to come after NDS_Init() where the CPUs are set up.
+     */
+    gdbstub_handle_t stubs[2] = {};
+    if (arm9_gdb_port > 0)
+    {
+        stubs[0] = setup_gdb_stub(arm9_gdb_port,
+                                  &NDS_ARM9,
+                                  &arm9_direct_memory_iface, "ARM9");
+    }
+    if (arm7_gdb_port > 0)
+    {
+        stubs[1] = setup_gdb_stub(arm7_gdb_port,
+                                  &NDS_ARM7,
+                                  &arm7_base_memory_iface, "ARM7");
+    }
+    puts("stub setup done");
+    ((CliDriver *)driver)->setStubs(stubs);
+    puts("stubs set in driver");
+    gdbstub_wait_set_enabled(stubs[0], 1);
+    gdbstub_wait_set_enabled(stubs[1], 1);
 
-  	}
-  	((CliDriver*)driver)->setStubs(stubs);
-  	gdbstub_wait_set_enabled(stubs[0], 1);
-  	gdbstub_wait_set_enabled(stubs[1], 1);
-
-  	if(stubs[0] || stubs[1]) {
-  	}
-	/*
-	 * -----------------------
-	 */
-
+    /*
+     * -----------------------
+     */
     return 0;
 }
 
@@ -192,42 +178,33 @@ EXPORTED int desmume_init()
  */
 void *
 createThread_gdb(void (*thread_function)(void *data),
-                 void *thread_data) {
-  SDL_Thread *new_thread = SDL_CreateThread((int (*)(void *data))thread_function,
-                                            "gdb-stub",
-                                            thread_data);
+                 void *thread_data)
+{
+    SDL_Thread *new_thread = SDL_CreateThread((int (*)(void *data))thread_function,
+                                              "gdb-stub",
+                                              thread_data);
 
-  return new_thread;
+    return new_thread;
 }
 
-void
-joinThread_gdb( void *thread_handle) {
-  int ignore;
-  SDL_WaitThread( (SDL_Thread*)thread_handle, &ignore);
+void joinThread_gdb(void *thread_handle)
+{
+    int ignore;
+    SDL_WaitThread((SDL_Thread *)thread_handle, &ignore);
 }
 
-static gdbstub_handle_t setup_gdb_stub(u16 port, armcpu_t *cpu, const armcpu_memory_iface *memio, const char* desc) {
-	gdbstub_handle_t stub = createStub_gdb(port, cpu, memio);
-	if ( stub == NULL) {
-		fprintf( stderr, "Failed to create %s gdbstub on port %d\n", desc, port);
-		exit( 1);
-	} else {
-		activateStub_gdb(stub);
-	}
-	return stub;
-}
 /*
  * -----------------------
  */
 
-
 EXPORTED void desmume_free()
 {
     execute = false;
-  	destroyStub_gdb( stubs[0]);
-  	destroyStub_gdb( stubs[1]);
+    // TODO: destroy stubs
+    // destroyStub_gdb( stubs[0]);
+    // destroyStub_gdb( stubs[1]);
 
-  	gdbstub_mutex_destroy();
+    gdbstub_mutex_destroy();
     NDS_DeInit();
     SDL_Quit();
 }
@@ -245,10 +222,10 @@ EXPORTED int desmume_open(const char *filename)
     return i;
 }
 
-EXPORTED void desmume_set_savetype(int type) {
+EXPORTED void desmume_set_savetype(int type)
+{
     backup_setManualBackupType(type);
 }
-
 
 EXPORTED void desmume_pause()
 {
@@ -282,7 +259,8 @@ EXPORTED void desmume_cycle(BOOL with_joystick)
 {
     u16 keypad;
     /* Joystick events */
-    if (with_joystick) {
+    if (with_joystick)
+    {
         /* Retrieve old value: can use joysticks w/ another device (from our side) */
         keypad = get_keypad();
         /* Process joystick events if any */
@@ -310,8 +288,8 @@ EXPORTED int desmume_sdl_get_ticks()
 EXPORTED void desmume_draw_opengl(GLuint *texture)
 {
 #ifdef HAVE_LIBAGG
-    //TODO : osd->update();
-    //TODO : DrawHUD();
+    // TODO : osd->update();
+    // TODO : DrawHUD();
 #endif
     const NDSDisplayInfo &displayInfo = GPU->GetDisplayInfo();
 
@@ -324,36 +302,52 @@ EXPORTED void desmume_draw_opengl(GLuint *texture)
     /* Draw the main screen as a textured quad */
     glBindTexture(GL_TEXTURE_2D, texture[NDSDisplayID_Main]);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, GPU_FRAMEBUFFER_NATIVE_WIDTH, GPU_FRAMEBUFFER_NATIVE_HEIGHT,
-                  GL_RGBA,
-                  GL_UNSIGNED_SHORT_1_5_5_5_REV,
-                  displayInfo.renderedBuffer[NDSDisplayID_Main]);
+                    GL_RGBA,
+                    GL_UNSIGNED_SHORT_1_5_5_5_REV,
+                    displayInfo.renderedBuffer[NDSDisplayID_Main]);
 
     GLfloat backlightIntensity = displayInfo.backlightIntensity[NDSDisplayID_Main];
 
     glBegin(GL_QUADS);
-        glTexCoord2f(0.00f, 0.00f); glVertex2f(  0.0f,   0.0f); glColor4f(backlightIntensity, backlightIntensity, backlightIntensity, 1.0f);
-        glTexCoord2f(1.00f, 0.00f); glVertex2f(256.0f,   0.0f); glColor4f(backlightIntensity, backlightIntensity, backlightIntensity, 1.0f);
-        glTexCoord2f(1.00f, 0.75f); glVertex2f(256.0f, 192.0f); glColor4f(backlightIntensity, backlightIntensity, backlightIntensity, 1.0f);
-        glTexCoord2f(0.00f, 0.75f); glVertex2f(  0.0f, 192.0f); glColor4f(backlightIntensity, backlightIntensity, backlightIntensity, 1.0f);
+    glTexCoord2f(0.00f, 0.00f);
+    glVertex2f(0.0f, 0.0f);
+    glColor4f(backlightIntensity, backlightIntensity, backlightIntensity, 1.0f);
+    glTexCoord2f(1.00f, 0.00f);
+    glVertex2f(256.0f, 0.0f);
+    glColor4f(backlightIntensity, backlightIntensity, backlightIntensity, 1.0f);
+    glTexCoord2f(1.00f, 0.75f);
+    glVertex2f(256.0f, 192.0f);
+    glColor4f(backlightIntensity, backlightIntensity, backlightIntensity, 1.0f);
+    glTexCoord2f(0.00f, 0.75f);
+    glVertex2f(0.0f, 192.0f);
+    glColor4f(backlightIntensity, backlightIntensity, backlightIntensity, 1.0f);
     glEnd();
 
     /* Draw the touch screen as a textured quad */
     glBindTexture(GL_TEXTURE_2D, texture[NDSDisplayID_Touch]);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, GPU_FRAMEBUFFER_NATIVE_WIDTH, GPU_FRAMEBUFFER_NATIVE_HEIGHT,
-                  GL_RGBA,
-                  GL_UNSIGNED_SHORT_1_5_5_5_REV,
-                  displayInfo.renderedBuffer[NDSDisplayID_Touch]);
+                    GL_RGBA,
+                    GL_UNSIGNED_SHORT_1_5_5_5_REV,
+                    displayInfo.renderedBuffer[NDSDisplayID_Touch]);
 
     backlightIntensity = displayInfo.backlightIntensity[NDSDisplayID_Touch];
 
     glBegin(GL_QUADS);
-        glTexCoord2f(0.00f, 0.00f); glVertex2f(  0.0f, 192.0f); glColor4f(backlightIntensity, backlightIntensity, backlightIntensity, 1.0f);
-        glTexCoord2f(1.00f, 0.00f); glVertex2f(256.0f, 192.0f); glColor4f(backlightIntensity, backlightIntensity, backlightIntensity, 1.0f);
-        glTexCoord2f(1.00f, 0.75f); glVertex2f(256.0f, 384.0f); glColor4f(backlightIntensity, backlightIntensity, backlightIntensity, 1.0f);
-        glTexCoord2f(0.00f, 0.75f); glVertex2f(  0.0f, 384.0f); glColor4f(backlightIntensity, backlightIntensity, backlightIntensity, 1.0f);
+    glTexCoord2f(0.00f, 0.00f);
+    glVertex2f(0.0f, 192.0f);
+    glColor4f(backlightIntensity, backlightIntensity, backlightIntensity, 1.0f);
+    glTexCoord2f(1.00f, 0.00f);
+    glVertex2f(256.0f, 192.0f);
+    glColor4f(backlightIntensity, backlightIntensity, backlightIntensity, 1.0f);
+    glTexCoord2f(1.00f, 0.75f);
+    glVertex2f(256.0f, 384.0f);
+    glColor4f(backlightIntensity, backlightIntensity, backlightIntensity, 1.0f);
+    glTexCoord2f(0.00f, 0.75f);
+    glVertex2f(0.0f, 384.0f);
+    glColor4f(backlightIntensity, backlightIntensity, backlightIntensity, 1.0f);
     glEnd();
 #ifdef HAVE_LIBAGG
-    //TODO : osd->clear();
+    // TODO : osd->clear();
 #endif
 }
 EXPORTED extern BOOL desmume_has_opengl()
@@ -373,7 +367,7 @@ EXPORTED u16 *desmume_draw_raw()
 {
     const NDSDisplayInfo &displayInfo = GPU->GetDisplayInfo();
     const size_t pixCount = GPU_FRAMEBUFFER_NATIVE_WIDTH * GPU_FRAMEBUFFER_NATIVE_HEIGHT;
-    ColorspaceApplyIntensityToBuffer16<false, false>(displayInfo.nativeBuffer16[NDSDisplayID_Main],  pixCount, displayInfo.backlightIntensity[NDSDisplayID_Main]);
+    ColorspaceApplyIntensityToBuffer16<false, false>(displayInfo.nativeBuffer16[NDSDisplayID_Main], pixCount, displayInfo.backlightIntensity[NDSDisplayID_Main]);
     ColorspaceApplyIntensityToBuffer16<false, false>(displayInfo.nativeBuffer16[NDSDisplayID_Touch], pixCount, displayInfo.backlightIntensity[NDSDisplayID_Touch]);
 
     return displayInfo.masterNativeBuffer16;
@@ -383,7 +377,8 @@ EXPORTED void desmume_draw_raw_as_rgbx(u8 *buffer)
 {
     u16 *gpuFramebuffer = desmume_draw_raw();
 
-    for (int i = 0; i < SCREENS_PIXEL_SIZE; i++) {
+    for (int i = 0; i < SCREENS_PIXEL_SIZE; i++)
+    {
         buffer[(i * 4) + 2] = ((gpuFramebuffer[i] >> 0) & 0x1f) << 3;
         buffer[(i * 4) + 1] = ((gpuFramebuffer[i] >> 5) & 0x1f) << 3;
         buffer[(i * 4) + 0] = ((gpuFramebuffer[i] >> 10) & 0x1f) << 3;
@@ -425,7 +420,7 @@ EXPORTED BOOL desmume_savestate_slot_exists(int index)
     return savestates[index].exists;
 }
 
-EXPORTED char* desmume_savestate_slot_date(int index)
+EXPORTED char *desmume_savestate_slot_date(int index)
 {
     return savestates[index].date;
 }
@@ -506,122 +501,128 @@ EXPORTED void desmume_memory_write_long(int address, unsigned long value)
 
 struct registerPointerMap
 {
-    const char* registerName;
-    unsigned int* pointer;
+    const char *registerName;
+    unsigned int *pointer;
     int dataSize;
 };
 
-#define RPM_ENTRY(name,var) {name, (unsigned int*)&var, sizeof(var)},
+#define RPM_ENTRY(name, var) {name, (unsigned int *)&var, sizeof(var)},
 
-registerPointerMap arm9PointerMap [] = {
-	RPM_ENTRY("r0", NDS_ARM9.R[0])
-	RPM_ENTRY("r1", NDS_ARM9.R[1])
-	RPM_ENTRY("r2", NDS_ARM9.R[2])
-	RPM_ENTRY("r3", NDS_ARM9.R[3])
-	RPM_ENTRY("r4", NDS_ARM9.R[4])
-	RPM_ENTRY("r5", NDS_ARM9.R[5])
-	RPM_ENTRY("r6", NDS_ARM9.R[6])
-	RPM_ENTRY("r7", NDS_ARM9.R[7])
-	RPM_ENTRY("r8", NDS_ARM9.R[8])
-	RPM_ENTRY("r9", NDS_ARM9.R[9])
-	RPM_ENTRY("r10", NDS_ARM9.R[10])
-	RPM_ENTRY("r11", NDS_ARM9.R[11])
-	RPM_ENTRY("r12", NDS_ARM9.R[12])
-	RPM_ENTRY("r13", NDS_ARM9.R[13])
-	RPM_ENTRY("r14", NDS_ARM9.R[14])
-	RPM_ENTRY("r15", NDS_ARM9.R[15])
-	RPM_ENTRY("cpsr", NDS_ARM9.CPSR.val)
-	RPM_ENTRY("spsr", NDS_ARM9.SPSR.val)
-	{}
-};
-registerPointerMap arm7PointerMap [] = {
-	RPM_ENTRY("r0", NDS_ARM7.R[0])
-	RPM_ENTRY("r1", NDS_ARM7.R[1])
-	RPM_ENTRY("r2", NDS_ARM7.R[2])
-	RPM_ENTRY("r3", NDS_ARM7.R[3])
-	RPM_ENTRY("r4", NDS_ARM7.R[4])
-	RPM_ENTRY("r5", NDS_ARM7.R[5])
-	RPM_ENTRY("r6", NDS_ARM7.R[6])
-	RPM_ENTRY("r7", NDS_ARM7.R[7])
-	RPM_ENTRY("r8", NDS_ARM7.R[8])
-	RPM_ENTRY("r9", NDS_ARM7.R[9])
-	RPM_ENTRY("r10", NDS_ARM7.R[10])
-	RPM_ENTRY("r11", NDS_ARM7.R[11])
-	RPM_ENTRY("r12", NDS_ARM7.R[12])
-	RPM_ENTRY("r13", NDS_ARM7.R[13])
-	RPM_ENTRY("r14", NDS_ARM7.R[14])
-	RPM_ENTRY("r15", NDS_ARM7.R[15])
-	RPM_ENTRY("cpsr", NDS_ARM7.CPSR.val)
-	RPM_ENTRY("spsr", NDS_ARM7.SPSR.val)
-	{}
-};
+registerPointerMap arm9PointerMap[] = {
+    RPM_ENTRY("r0", NDS_ARM9.R[0])
+        RPM_ENTRY("r1", NDS_ARM9.R[1])
+            RPM_ENTRY("r2", NDS_ARM9.R[2])
+                RPM_ENTRY("r3", NDS_ARM9.R[3])
+                    RPM_ENTRY("r4", NDS_ARM9.R[4])
+                        RPM_ENTRY("r5", NDS_ARM9.R[5])
+                            RPM_ENTRY("r6", NDS_ARM9.R[6])
+                                RPM_ENTRY("r7", NDS_ARM9.R[7])
+                                    RPM_ENTRY("r8", NDS_ARM9.R[8])
+                                        RPM_ENTRY("r9", NDS_ARM9.R[9])
+                                            RPM_ENTRY("r10", NDS_ARM9.R[10])
+                                                RPM_ENTRY("r11", NDS_ARM9.R[11])
+                                                    RPM_ENTRY("r12", NDS_ARM9.R[12])
+                                                        RPM_ENTRY("r13", NDS_ARM9.R[13])
+                                                            RPM_ENTRY("r14", NDS_ARM9.R[14])
+                                                                RPM_ENTRY("r15", NDS_ARM9.R[15])
+                                                                    RPM_ENTRY("cpsr", NDS_ARM9.CPSR.val)
+                                                                        RPM_ENTRY("spsr", NDS_ARM9.SPSR.val){}};
+registerPointerMap arm7PointerMap[] = {
+    RPM_ENTRY("r0", NDS_ARM7.R[0])
+        RPM_ENTRY("r1", NDS_ARM7.R[1])
+            RPM_ENTRY("r2", NDS_ARM7.R[2])
+                RPM_ENTRY("r3", NDS_ARM7.R[3])
+                    RPM_ENTRY("r4", NDS_ARM7.R[4])
+                        RPM_ENTRY("r5", NDS_ARM7.R[5])
+                            RPM_ENTRY("r6", NDS_ARM7.R[6])
+                                RPM_ENTRY("r7", NDS_ARM7.R[7])
+                                    RPM_ENTRY("r8", NDS_ARM7.R[8])
+                                        RPM_ENTRY("r9", NDS_ARM7.R[9])
+                                            RPM_ENTRY("r10", NDS_ARM7.R[10])
+                                                RPM_ENTRY("r11", NDS_ARM7.R[11])
+                                                    RPM_ENTRY("r12", NDS_ARM7.R[12])
+                                                        RPM_ENTRY("r13", NDS_ARM7.R[13])
+                                                            RPM_ENTRY("r14", NDS_ARM7.R[14])
+                                                                RPM_ENTRY("r15", NDS_ARM7.R[15])
+                                                                    RPM_ENTRY("cpsr", NDS_ARM7.CPSR.val)
+                                                                        RPM_ENTRY("spsr", NDS_ARM7.SPSR.val){}};
 
 struct cpuToRegisterMap
 {
-	const char* cpuName;
-	registerPointerMap* rpmap;
-}
-cpuToRegisterMaps [] =
-{
-	{"arm9.", arm9PointerMap},
-	{"main.", arm9PointerMap},
-	{"arm7.", arm7PointerMap},
-	{"sub.",  arm7PointerMap},
-	{"", arm9PointerMap},
+    const char *cpuName;
+    registerPointerMap *rpmap;
+} cpuToRegisterMaps[] =
+    {
+        {"arm9.", arm9PointerMap},
+        {"main.", arm9PointerMap},
+        {"arm7.", arm7PointerMap},
+        {"sub.", arm7PointerMap},
+        {"", arm9PointerMap},
 };
 
-EXPORTED u32 desmume_memory_read_register(char* register_name)
+EXPORTED u32 desmume_memory_read_register(char *register_name)
 {
-	for(int cpu = 0; cpu < sizeof(cpuToRegisterMaps)/sizeof(*cpuToRegisterMaps); cpu++)
-	{
-		cpuToRegisterMap ctrm = cpuToRegisterMaps[cpu];
-		int cpuNameLen = strlen(ctrm.cpuName);
-		if(!strncasecmp(register_name, ctrm.cpuName, cpuNameLen))
-		{
+    for (int cpu = 0; cpu < sizeof(cpuToRegisterMaps) / sizeof(*cpuToRegisterMaps); cpu++)
+    {
+        cpuToRegisterMap ctrm = cpuToRegisterMaps[cpu];
+        int cpuNameLen = strlen(ctrm.cpuName);
+        if (!strncasecmp(register_name, ctrm.cpuName, cpuNameLen))
+        {
             register_name += cpuNameLen;
-			for(int reg = 0; ctrm.rpmap[reg].dataSize; reg++)
-			{
-				registerPointerMap rpm = ctrm.rpmap[reg];
-				if(!strcasecmp(register_name, rpm.registerName))
-				{
-					switch(rpm.dataSize)
-					{ default:
-					case 1: return *(unsigned char*)rpm.pointer;
-					case 2: return *(u16*)rpm.pointer;
-					case 4: return *(u32*)rpm.pointer;
-					}
-				}
-			}
-			return 0;
-		}
-	}
-	return 0;
+            for (int reg = 0; ctrm.rpmap[reg].dataSize; reg++)
+            {
+                registerPointerMap rpm = ctrm.rpmap[reg];
+                if (!strcasecmp(register_name, rpm.registerName))
+                {
+                    switch (rpm.dataSize)
+                    {
+                    default:
+                    case 1:
+                        return *(unsigned char *)rpm.pointer;
+                    case 2:
+                        return *(u16 *)rpm.pointer;
+                    case 4:
+                        return *(u32 *)rpm.pointer;
+                    }
+                }
+            }
+            return 0;
+        }
+    }
+    return 0;
 }
 
-EXPORTED void desmume_memory_write_register(char* register_name, u32 value)
+EXPORTED void desmume_memory_write_register(char *register_name, u32 value)
 {
-	for(int cpu = 0; cpu < sizeof(cpuToRegisterMaps)/sizeof(*cpuToRegisterMaps); cpu++)
-	{
-		cpuToRegisterMap ctrm = cpuToRegisterMaps[cpu];
-		int cpuNameLen = strlen(ctrm.cpuName);
-		if(!strncasecmp(register_name, ctrm.cpuName, cpuNameLen))
-		{
-			register_name += cpuNameLen;
-			for(int reg = 0; ctrm.rpmap[reg].dataSize; reg++)
-			{
-				registerPointerMap rpm = ctrm.rpmap[reg];
-				if(!strcasecmp(register_name, rpm.registerName))
-				{
-					switch(rpm.dataSize)
-					{ default:
-					case 1: *(unsigned char*)rpm.pointer = (unsigned char)(value & 0xFF); break;
-					case 2: *(u16*)rpm.pointer = (u16)(value & 0xFFFF); break;
-					case 4: *(u32*)rpm.pointer = value; break;
-					}
-				}
-			}
-		}
-	}
+    for (int cpu = 0; cpu < sizeof(cpuToRegisterMaps) / sizeof(*cpuToRegisterMaps); cpu++)
+    {
+        cpuToRegisterMap ctrm = cpuToRegisterMaps[cpu];
+        int cpuNameLen = strlen(ctrm.cpuName);
+        if (!strncasecmp(register_name, ctrm.cpuName, cpuNameLen))
+        {
+            register_name += cpuNameLen;
+            for (int reg = 0; ctrm.rpmap[reg].dataSize; reg++)
+            {
+                registerPointerMap rpm = ctrm.rpmap[reg];
+                if (!strcasecmp(register_name, rpm.registerName))
+                {
+                    switch (rpm.dataSize)
+                    {
+                    default:
+                    case 1:
+                        *(unsigned char *)rpm.pointer = (unsigned char)(value & 0xFF);
+                        break;
+                    case 2:
+                        *(u16 *)rpm.pointer = (u16)(value & 0xFFFF);
+                        break;
+                    case 4:
+                        *(u32 *)rpm.pointer = value;
+                        break;
+                    }
+                }
+            }
+        }
+    }
 }
 
 EXPORTED u32 desmume_memory_get_next_instruction()
@@ -631,19 +632,21 @@ EXPORTED u32 desmume_memory_get_next_instruction()
 
 EXPORTED void desmume_memory_set_next_instruction(u32 value)
 {
-    if (!CommonSettings.use_jit) {
+    if (!CommonSettings.use_jit)
+    {
         NDS_ARM9.next_instruction = value;
     }
 }
 
 INLINE void memory_register_hook(int addr, MemHookType hook_type, int size, memory_cb_fnc cb)
 {
-	for(unsigned int i = addr; i != addr+size; i++)
-	{
-		hooks[hook_type][i] = cb;
-	}
+    for (unsigned int i = addr; i != addr + size; i++)
+    {
+        hooks[hook_type][i] = cb;
+    }
     std::vector<unsigned int> hooked_bytes;
-    for(std::map<unsigned int, memory_cb_fnc>::iterator it = hooks[hook_type].begin(); it != hooks[hook_type].end(); ++it) {
+    for (std::map<unsigned int, memory_cb_fnc>::iterator it = hooks[hook_type].begin(); it != hooks[hook_type].end(); ++it)
+    {
         hooked_bytes.push_back(it->first);
     }
     hooked_regions[hook_type].Calculate(hooked_bytes);
@@ -651,17 +654,17 @@ INLINE void memory_register_hook(int addr, MemHookType hook_type, int size, memo
 
 EXPORTED void desmume_memory_register_write(int address, int size, memory_cb_fnc cb)
 {
-	memory_register_hook(address, HOOK_WRITE, size, cb);
+    memory_register_hook(address, HOOK_WRITE, size, cb);
 }
 
 EXPORTED void desmume_memory_register_read(int address, int size, memory_cb_fnc cb)
 {
-	memory_register_hook(address, HOOK_READ, size, cb);
+    memory_register_hook(address, HOOK_READ, size, cb);
 }
 
 EXPORTED void desmume_memory_register_exec(int address, int size, memory_cb_fnc cb)
 {
-	memory_register_hook(address, HOOK_EXEC, size, cb);
+    memory_register_hook(address, HOOK_EXEC, size, cb);
 }
 
 EXPORTED void desmume_screenshot(char *screenshot_buffer)
@@ -669,17 +672,17 @@ EXPORTED void desmume_screenshot(char *screenshot_buffer)
     u16 *gpuFramebuffer = GPU->GetDisplayInfo().masterNativeBuffer16;
     static int seq = 0;
 
-    for (int i = 0; i < SCREENS_PIXEL_SIZE; i++) {
+    for (int i = 0; i < SCREENS_PIXEL_SIZE; i++)
+    {
         screenshot_buffer[(i * 3) + 0] = ((gpuFramebuffer[i] >> 0) & 0x1f) << 3;
         screenshot_buffer[(i * 3) + 1] = ((gpuFramebuffer[i] >> 5) & 0x1f) << 3;
         screenshot_buffer[(i * 3) + 2] = ((gpuFramebuffer[i] >> 10) & 0x1f) << 3;
     }
-
 }
 
 EXPORTED BOOL desmume_input_joy_init(void)
 {
-    return (BOOL) init_joy();
+    return (BOOL)init_joy();
 }
 
 EXPORTED void desmume_input_joy_uninit(void)
@@ -778,7 +781,7 @@ EXPORTED void desmume_movie_set_readonly(BOOL state)
     movie_readonly = state;
 }
 
-EXPORTED const char* desmume_movie_play(const char *file_name)
+EXPORTED const char *desmume_movie_play(const char *file_name)
 {
     return FCEUI_LoadMovie(file_name, true, false, 0);
 }
@@ -789,24 +792,25 @@ EXPORTED void desmume_movie_record_simple(const char *save_file_name, const char
     FCEUI_SaveMovie(save_file_name, s2ws(s_author_name), START_BLANK, "", DateTime::get_Now());
 }
 
-EXPORTED void desmume_movie_record(const char *save_file_name, const char *author_name, START_FROM start_from, const char* sram_file_name)
+EXPORTED void desmume_movie_record(const char *save_file_name, const char *author_name, START_FROM start_from, const char *sram_file_name)
 {
     std::string s_author_name = author_name;
     std::string s_sram_file_name = sram_file_name;
     FCEUI_SaveMovie(save_file_name, s2ws(s_author_name), start_from, s_sram_file_name, DateTime::get_Now());
 }
 
-EXPORTED void desmume_movie_record_from_date(const char *save_file_name, const char *author_name, START_FROM start_from, const char* sram_file_name, SimpleDate date)
+EXPORTED void desmume_movie_record_from_date(const char *save_file_name, const char *author_name, START_FROM start_from, const char *sram_file_name, SimpleDate date)
 {
     std::string s_author_name = author_name;
     std::string s_sram_file_name = sram_file_name;
     FCEUI_SaveMovie(save_file_name, s2ws(s_author_name), start_from, s_sram_file_name,
-            DateTime(date.year, date.month, date.day, date.hour, date.minute, date.second, date.millisecond));
+                    DateTime(date.year, date.month, date.day, date.hour, date.minute, date.second, date.millisecond));
 }
 
 EXPORTED void desmume_movie_replay()
 {
-    if (movieMode != MOVIEMODE_INACTIVE) {
+    if (movieMode != MOVIEMODE_INACTIVE)
+    {
         extern char curMovieFilename[512];
         desmume_movie_play(curMovieFilename);
     }

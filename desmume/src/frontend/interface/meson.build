@@ -131,6 +131,7 @@ libdesmume_src += [
   '../../libretro-common/rthreads/rsemaphore.c',
   '../../libretro-common/rthreads/rthreads.c',
   '../../libretro-common/encodings/encoding_utf.c',
+    '../../gdbstub/gdbstub.cpp'
 ]
 
 libdesmume_src += [
@@ -169,7 +170,7 @@ if have_jit
     '../../utils/AsmJit/x86/x86defs.cpp',
     '../../utils/AsmJit/x86/x86func.cpp',
     '../../utils/AsmJit/x86/x86operand.cpp',
-    '../../utils/AsmJit/x86/x86util.cpp',
+    '../../utils/AsmJit/x86/x86util.cpp'
   ]
 endif
 

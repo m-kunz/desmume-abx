@@ -20,6 +20,6 @@ option('wifi',
 )
 option('gdb-stub',
   type: 'boolean',
-  value: false,
+  value: true,
   description: 'Enable gdb stub',
 )
